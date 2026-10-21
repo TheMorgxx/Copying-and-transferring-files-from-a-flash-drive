@@ -1,0 +1,16 @@
+[
+  {
+    "GameName": "Rust",
+    "Paths": [
+      { "Path": "C:/Program Files (x86)/Steam/steamapps/common/Rust/cfg" },
+      { "Path": "C:/Users/User/AppData/Roaming/Facepunch/Rust" }
+    ]
+  },
+  {
+    "GameName": "Minecraft",
+    "Paths": [
+      { "Path": "C:/Users/User/AppData/Roaming/.minecraft/options.txt" },
+      { "Path": "C:/Users/User/AppData/Roaming/.minecraft/mods" }
+    ]
+  }
+]

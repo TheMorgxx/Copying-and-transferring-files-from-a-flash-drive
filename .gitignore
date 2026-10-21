@@ -1,0 +1,30 @@
+# Сборка
+bin/
+obj/
+release/
+.vs/
+TestResults/
+packages/
+*.user
+*.suo
+*.pdb
+*.exe
+*.dll
+
+# Архивы и зашифрованные бэкапы
+*.zip
+*.rar
+*.7z
+*.enc
+Backup_*/
+
+# Локальные настройки и секреты
+known_roots.json
+.env
+.env.*
+*.pfx
+*.p12
+*.pem
+*.key
+*.snk
+*.bak
