@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using ConfigBackupTool.Credentials;
 using ConfigBackupTool.Domain;
 using ConfigBackupTool.Games;
 using ConfigBackupTool.Managers;
@@ -17,6 +18,7 @@ namespace ConfigBackupTool.App
     {
         private readonly IGameDefinitionRepository _gameDefinitionRepository;
         private readonly IBackupManager _backupManager;
+        private readonly ICredentialStore _credentialStore;
 
         private List<GameDefinition> _allGames;
         private string _baseFolder;
@@ -27,10 +29,11 @@ namespace ConfigBackupTool.App
         private Button _browseFolderButton;
         private TextBox _passwordTextBox;
         private TextBox _passwordConfirmTextBox;
+        private CheckBox _rememberPasswordCheckBox;
         private TextBox _logTextBox;
         private Button _startButton;
 
-        public ExportForm(IGameDefinitionRepository gameDefinitionRepository, IBackupManager backupManager)
+        public ExportForm(IGameDefinitionRepository gameDefinitionRepository, IBackupManager backupManager, ICredentialStore credentialStore)
         {
             if (gameDefinitionRepository == null)
             {
@@ -42,8 +45,14 @@ namespace ConfigBackupTool.App
                 throw new ArgumentNullException("backupManager");
             }
 
+            if (credentialStore == null)
+            {
+                throw new ArgumentNullException("credentialStore");
+            }
+
             _gameDefinitionRepository = gameDefinitionRepository;
             _backupManager = backupManager;
+            _credentialStore = credentialStore;
             _allGames = new List<GameDefinition>();
 
             InitializeLayout();
@@ -124,6 +133,11 @@ namespace ConfigBackupTool.App
             _startButton.Size = new Size(165, 28);
             _startButton.Click += OnStartClick;
 
+            _rememberPasswordCheckBox = new CheckBox();
+            _rememberPasswordCheckBox.Text = "Запомнить пароль на этом ПК";
+            _rememberPasswordCheckBox.Location = new Point(15, 447);
+            _rememberPasswordCheckBox.AutoSize = true;
+
             Controls.Add(gamesLabel);
             Controls.Add(_gamesCheckedListBox);
             Controls.Add(folderLabel);
@@ -135,6 +149,7 @@ namespace ConfigBackupTool.App
             Controls.Add(_passwordConfirmTextBox);
             Controls.Add(logLabel);
             Controls.Add(_logTextBox);
+            Controls.Add(_rememberPasswordCheckBox);
             Controls.Add(_startButton);
         }
 
@@ -161,6 +176,15 @@ namespace ConfigBackupTool.App
             {
                 AppendLog("games.json пуст или не найден — нечего экспортировать. Заполните список игр (SettingsForm, шаг 6) и откройте форму заново.");
                 _startButton.Enabled = false;
+            }
+
+            string rememberedPassword = _credentialStore.Load();
+
+            if (rememberedPassword != null)
+            {
+                _passwordTextBox.Text = rememberedPassword;
+                _passwordConfirmTextBox.Text = rememberedPassword;
+                _rememberPasswordCheckBox.Checked = true;
             }
         }
 
@@ -241,6 +265,7 @@ namespace ConfigBackupTool.App
             {
                 List<string> log = await Task.Run(() => _backupManager.Export(selectedGames, destinationFolder, password, progress));
                 AppendLog("Готово. Строк в логе: " + log.Count);
+                ApplyRememberChoice(password);
                 MessageBox.Show(this, "Экспорт завершён.", "ConfigBackupTool", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
@@ -251,6 +276,27 @@ namespace ConfigBackupTool.App
             finally
             {
                 SetRunningState(false);
+            }
+        }
+
+        // Вызывается только после успешного экспорта: сохранённый пароль всегда совпадает с тем,
+        // которым реально зашифрован последний бэкап. Сбой хранилища экспорт не валит — только лог.
+        private void ApplyRememberChoice(string password)
+        {
+            try
+            {
+                if (_rememberPasswordCheckBox.Checked == true)
+                {
+                    _credentialStore.Save(password);
+                }
+                else
+                {
+                    _credentialStore.Clear();
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendLog("Не удалось обновить сохранённый пароль: " + ex.Message);
             }
         }
 
@@ -282,6 +328,7 @@ namespace ConfigBackupTool.App
             _browseFolderButton.Enabled = isRunning == false;
             _passwordTextBox.Enabled = isRunning == false;
             _passwordConfirmTextBox.Enabled = isRunning == false;
+            _rememberPasswordCheckBox.Enabled = isRunning == false;
             _startButton.Enabled = isRunning == false;
         }
     }

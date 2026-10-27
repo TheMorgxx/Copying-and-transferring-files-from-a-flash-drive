@@ -1,6 +1,7 @@
 using System;
 using System.Drawing;
 using System.Windows.Forms;
+using ConfigBackupTool.Credentials;
 using ConfigBackupTool.Encryption;
 using ConfigBackupTool.Games;
 using ConfigBackupTool.Manifest;
@@ -20,6 +21,7 @@ namespace ConfigBackupTool.App
         private readonly IPathResolver _pathResolver;
         private readonly IEncryptionService _encryptionService;
         private readonly IBackupManifestRepository _manifestRepository;
+        private readonly ICredentialStore _credentialStore;
 
         public MainForm(
             IGameDefinitionRepository gameDefinitionRepository,
@@ -27,7 +29,8 @@ namespace ConfigBackupTool.App
             IBackupManager backupManager,
             IPathResolver pathResolver,
             IEncryptionService encryptionService,
-            IBackupManifestRepository manifestRepository)
+            IBackupManifestRepository manifestRepository,
+            ICredentialStore credentialStore)
         {
             if (gameDefinitionRepository == null)
             {
@@ -59,12 +62,18 @@ namespace ConfigBackupTool.App
                 throw new ArgumentNullException("manifestRepository");
             }
 
+            if (credentialStore == null)
+            {
+                throw new ArgumentNullException("credentialStore");
+            }
+
             _gameDefinitionRepository = gameDefinitionRepository;
             _knownRootsRepository = knownRootsRepository;
             _backupManager = backupManager;
             _pathResolver = pathResolver;
             _encryptionService = encryptionService;
             _manifestRepository = manifestRepository;
+            _credentialStore = credentialStore;
 
             InitializeLayout();
         }
@@ -103,7 +112,7 @@ namespace ConfigBackupTool.App
         // ExportForm подключена (шаг 4).
         private void OnExportClick(object sender, EventArgs e)
         {
-            using (ExportForm exportForm = new ExportForm(_gameDefinitionRepository, _backupManager))
+            using (ExportForm exportForm = new ExportForm(_gameDefinitionRepository, _backupManager, _credentialStore))
             {
                 exportForm.ShowDialog(this);
             }
@@ -113,7 +122,7 @@ namespace ConfigBackupTool.App
         // _pathResolver/_encryptionService/_manifestRepository + WinFormsRestoreConflictResolver.
         private void OnImportClick(object sender, EventArgs e)
         {
-            using (ImportForm importForm = new ImportForm(_pathResolver, _encryptionService, _manifestRepository))
+            using (ImportForm importForm = new ImportForm(_pathResolver, _encryptionService, _manifestRepository, _credentialStore))
             {
                 importForm.ShowDialog(this);
             }

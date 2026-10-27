@@ -4,6 +4,7 @@ using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using ConfigBackupTool.Credentials;
 using ConfigBackupTool.Domain;
 using ConfigBackupTool.Encryption;
 using ConfigBackupTool.Manifest;
@@ -22,6 +23,7 @@ namespace ConfigBackupTool.App
         private readonly IEncryptionService _encryptionService;
         private readonly IBackupManifestRepository _manifestRepository;
         private readonly IRestoreManager _restoreManager;
+        private readonly ICredentialStore _credentialStore;
 
         private string _sessionFolder;
         private bool _isRunning;
@@ -29,13 +31,14 @@ namespace ConfigBackupTool.App
         private TextBox _sessionFolderTextBox;
         private Button _browseFolderButton;
         private TextBox _passwordTextBox;
+        private CheckBox _rememberPasswordCheckBox;
         private RadioButton _replaceAllRadio;
         private RadioButton _addMissingOnlyRadio;
         private RadioButton _askOnConflictRadio;
         private TextBox _logTextBox;
         private Button _startButton;
 
-        public ImportForm(IPathResolver pathResolver, IEncryptionService encryptionService, IBackupManifestRepository manifestRepository)
+        public ImportForm(IPathResolver pathResolver, IEncryptionService encryptionService, IBackupManifestRepository manifestRepository, ICredentialStore credentialStore)
         {
             if (pathResolver == null)
             {
@@ -52,9 +55,15 @@ namespace ConfigBackupTool.App
                 throw new ArgumentNullException("manifestRepository");
             }
 
+            if (credentialStore == null)
+            {
+                throw new ArgumentNullException("credentialStore");
+            }
+
             _pathResolver = pathResolver;
             _encryptionService = encryptionService;
             _manifestRepository = manifestRepository;
+            _credentialStore = credentialStore;
 
             // WinFormsRestoreConflictResolver держит ссылку на эту форму (this), чтобы
             // маршалить показ ConflictForm на UI-поток из фонового Task.Run — см. её
@@ -62,6 +71,7 @@ namespace ConfigBackupTool.App
             _restoreManager = new RestoreManager(_pathResolver, _encryptionService, _manifestRepository, new WinFormsRestoreConflictResolver(this));
 
             InitializeLayout();
+            Load += OnFormLoad;
             FormClosing += OnFormClosing;
         }
 
@@ -139,6 +149,11 @@ namespace ConfigBackupTool.App
             _startButton.Size = new Size(185, 28);
             _startButton.Click += OnStartClick;
 
+            _rememberPasswordCheckBox = new CheckBox();
+            _rememberPasswordCheckBox.Text = "Запомнить пароль на этом ПК";
+            _rememberPasswordCheckBox.Location = new Point(15, 387);
+            _rememberPasswordCheckBox.AutoSize = true;
+
             Controls.Add(folderLabel);
             Controls.Add(_sessionFolderTextBox);
             Controls.Add(_browseFolderButton);
@@ -150,7 +165,19 @@ namespace ConfigBackupTool.App
             Controls.Add(_askOnConflictRadio);
             Controls.Add(logLabel);
             Controls.Add(_logTextBox);
+            Controls.Add(_rememberPasswordCheckBox);
             Controls.Add(_startButton);
+        }
+
+        private void OnFormLoad(object sender, EventArgs e)
+        {
+            string rememberedPassword = _credentialStore.Load();
+
+            if (rememberedPassword != null)
+            {
+                _passwordTextBox.Text = rememberedPassword;
+                _rememberPasswordCheckBox.Checked = true;
+            }
         }
 
         private void OnFormClosing(object sender, FormClosingEventArgs e)
@@ -221,6 +248,7 @@ namespace ConfigBackupTool.App
                     progress));
 
                 AppendLog("Готово. Строк в логе: " + log.Count);
+                ApplyRememberChoice(password);
                 MessageBox.Show(this, "Восстановление завершено.", "ConfigBackupTool", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
             catch (Exception ex)
@@ -274,6 +302,27 @@ namespace ConfigBackupTool.App
             return showDialog();
         }
 
+        // Вызывается только после успешного восстановления — то есть пароль точно верный
+        // (неверный пароль роняет Load манифеста раньше). Сбой хранилища результат не портит.
+        private void ApplyRememberChoice(string password)
+        {
+            try
+            {
+                if (_rememberPasswordCheckBox.Checked == true)
+                {
+                    _credentialStore.Save(password);
+                }
+                else
+                {
+                    _credentialStore.Clear();
+                }
+            }
+            catch (Exception ex)
+            {
+                AppendLog("Не удалось обновить сохранённый пароль: " + ex.Message);
+            }
+        }
+
         private RestoreMode GetSelectedMode()
         {
             if (_replaceAllRadio.Checked == true)
@@ -300,6 +349,7 @@ namespace ConfigBackupTool.App
 
             _browseFolderButton.Enabled = isRunning == false;
             _passwordTextBox.Enabled = isRunning == false;
+            _rememberPasswordCheckBox.Enabled = isRunning == false;
             _replaceAllRadio.Enabled = isRunning == false;
             _addMissingOnlyRadio.Enabled = isRunning == false;
             _askOnConflictRadio.Enabled = isRunning == false;

@@ -1,4 +1,4 @@
-# ConfigBackupTool — архитектура (в разработке)
+# ConfigBackupTool — архитектура
 
 ## Статус
 Реализовано: слой путей (нормализация + резолв + известные корни), domain-модели манифеста,
@@ -27,7 +27,11 @@ TextInputForm (общий, одна строка ввода — имя игры 
 KnownRootEditForm (Marker + RootPath с "Обзор..." на папку), PathEntryEditForm (путь файла
 или папки, "Обзор..." на оба варианта плюс ручной ввод — нужен для путей, которых пока нет
 на этой машине).
-Не реализовано: ICredentialStore (DPAPI, "запомнить пароль на этом ПК") — следующий шаг.
+ICredentialStore/DpapiCredentialStore (шаг 7) реализованы и подключены: чекбокс "Запомнить
+пароль на этом ПК" в ExportForm и ImportForm. Пароль шифруется Windows DPAPI
+(DataProtectionScope.CurrentUser + app-entropy) и лежит в %LOCALAPPDATA%\ConfigBackupTool\
+credentials.dat — не рядом с exe, чтобы не попасть на флешку/в git. Один пароль на
+пользователя Windows, общий для Export и Restore. Все пункты плана закрыты.
 
 ## Структура
 
@@ -67,6 +71,14 @@ ConfigBackupTool/                          — основная библиоте
                                             коллекция Paths у отдельной игры (ручная правка
                                             games.json) — подчищается до пустого списка, чтобы
                                             ExportForm не проверял на null на каждый элемент.
+  Credentials/
+    ICredentialStore.cs / DpapiCredentialStore.cs — "запомненный" пароль: HasPassword/Load/Save/
+                                            Clear. Load() не бросает: нет файла, пустой файл или
+                                            CryptographicException (блоб другого пользователя/ПК)
+                                            → null. Save пишет через временный файл + File.Move
+                                            (overwrite), чтобы сбой не оставил битый credentials.dat.
+                                            Требует NuGet System.Security.Cryptography.ProtectedData
+                                            (в shared framework net8.0-windows его нет).
   Managers/
     IBackupManager.cs / BackupManager.cs   — оркестрация экспорта: детект установки игры целиком
                                             → нормализация путей → шифрование+запись под GUID-
@@ -105,8 +117,8 @@ ConfigBackupTool/                          — основная библиоте
     Program.cs                             — composition root (без DI-контейнера): собирает
                                             JsonKnownRootsRepository, JsonGameDefinitionRepository,
                                             PathNormalizer, PathResolver, AesEncryptionService,
-                                            JsonManifestRepository, BackupManager и передаёт их
-                                            в MainForm. IRestoreManager здесь НЕ собирается —
+                                            JsonManifestRepository, DpapiCredentialStore,
+                                            BackupManager и передаёт их в MainForm. IRestoreManager здесь НЕ собирается —
                                             ждёт WinForms-реализацию IRestoreConflictResolver
                                             (ConflictForm, шаг 5); вместо готового RestoreManager
                                             в MainForm передаются составные части (pathResolver/
@@ -289,7 +301,11 @@ ConfigBackupTool.NormalizerTest/           — консольный тест, н
 
 ## Дальше по плану
 
-1. ICredentialStore (DPAPI, "запомнить пароль на этом ПК") — единственный оставшийся пункт.
+~~1. ICredentialStore (DPAPI, "запомнить пароль на этом ПК")~~ — закрыто (шаг 7). Логика:
+чекбокс предзаполняет пароль при открытии формы; сохранение/очистка происходит только
+ПОСЛЕ успешного Export/Import (в Import неверный пароль падает в Load манифеста раньше,
+поэтому неверный пароль не запоминается); снятая галочка при успешной операции удаляет
+сохранённый пароль; сбой хранилища пишется в лог и не портит результат операции.
 
 ~~2. WinForms UI: ExportForm, ImportForm, форма настроек известных корней, диалоги
 конфликтов~~ — закрыто (шаги 4–6).

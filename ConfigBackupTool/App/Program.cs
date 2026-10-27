@@ -1,5 +1,6 @@
 using System;
 using System.Windows.Forms;
+using ConfigBackupTool.Credentials;
 using ConfigBackupTool.Encryption;
 using ConfigBackupTool.Games;
 using ConfigBackupTool.Manifest;
@@ -35,13 +36,16 @@ namespace ConfigBackupTool.App
 
             IBackupManager backupManager = new BackupManager(pathNormalizer, encryptionService, manifestRepository);
 
+            ICredentialStore credentialStore = new DpapiCredentialStore();
+
             MainForm mainForm = new MainForm(
                 gameDefinitionRepository,
                 knownRootsRepository,
                 backupManager,
                 pathResolver,
                 encryptionService,
-                manifestRepository);
+                manifestRepository,
+                credentialStore);
 
             Application.Run(mainForm);
         }
